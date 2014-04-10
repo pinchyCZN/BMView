@@ -20,11 +20,13 @@ int xdelta=640;
 #define BUF_HEIGHT 480
 int zoom=1;
 int stretch=0;
-enum {RGB888A=0,RGB888,RGB555A,RGB8,BITMAP1,BITMAP2,RGBEND};
+enum {RGB888A=0,RGB888,BGR888A,BGR888,RGB555A,RGB8,BITMAP1,BITMAP2,RGBEND};
 typedef struct {int type;char *name;}MODES;
 MODES display_modes[]={
 	{RGB888A,"RGB888A"},
 	{RGB888,"RGB888"},
+	{BGR888A,"BGR888A"},
+	{BGR888,"BGR888"},
 	{RGB555A,"RGB555A"},
 	{RGB8,"RGB8"},
 	{BITMAP1,"BITMAP1"},
@@ -239,9 +241,9 @@ void set_pixel(BYTE *buf,int x,int y,BYTE R,BYTE G,BYTE B)
 	if((offset+2)>=BUF_SIZE)
 		return;
 	else{
-		buf[offset]=R;
+		buf[offset]=B;
 		buf[offset+1]=G;
-		buf[offset+2]=B;
+		buf[offset+2]=R;
 	}
 }
 
@@ -273,7 +275,9 @@ void drawbuffer(FILE *f,__int64 offset,BYTE *buffer,int mode,int zoom,int bytest
 				int step_size=4;
 				switch(mode){
 				default:
+				case BGR888A:
 				case RGB888A:step_size=4;break;
+				case BGR888:
 				case RGB888:step_size=3;break;
 				case RGB555A:step_size=2;break;
 				case RGB8:step_size=1;break;
@@ -292,10 +296,17 @@ void drawbuffer(FILE *f,__int64 offset,BYTE *buffer,int mode,int zoom,int bytest
 					R=(data[shift+1]<<2)&0xF8;
 					break;
 				case RGB8:R=G=B=data[shift+0];break;
+				case BGR888:
+				case BGR888A:
+					B=data[shift+0];
+					G=data[shift+1];
+					R=data[shift+2];
+					break;
 				default:
 					R=data[shift+0];
 					G=data[shift+1];
 					B=data[shift+2];
+					break;
 				}
 				if((bytestep>0) && (bytestep<=4) && mode==RGB8)
 					shift+=bytestep;
@@ -406,7 +417,9 @@ void set_info(HWND hwnd,int ctrl)
 int set_bytestep(int mode)
 {
 	switch(mode){
+	case BGR888A:
 	case RGB888A:return 4;
+	case BGR888:
 	case RGB888:return 3;
 	case RGB555A:return 2;
 	default:return 1;
@@ -446,20 +459,40 @@ void file_error(HWND hwnd,char *fname)
 	_snprintf(msg,sizeof(msg),"Cant open file:\r\n%s",str);
 	MessageBox(hwnd,msg,"FILE ERROR",MB_OK);
 }
-LRESULT CALLBACK request_value(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam)
+
+LRESULT CALLBACK request_value(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
-	if(message!=0x200&&message!=0x84&&message!=0x20&&message!=WM_ENTERIDLE)
-	debug_printf("message=%08X wParam=%08X lParam=%08X tick=%u\n",message,wParam,lParam,GetTickCount());
-	switch(message)
+	static int *val=0;
+	switch(msg)
 	{
+	case WM_INITDIALOG:
+		{
+			RECT rect;
+			val=(int*)lParam;
+			SendDlgItemMessage(hwnd,IDC_EDIT1,EM_LIMITTEXT,20,0);
+			GetWindowRect(hWindow,&rect);
+			SetWindowPos(hwnd,NULL,(rect.right+rect.left)/2,(rect.top+rect.bottom)/2,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_SHOWWINDOW);
+		}
+		break;
 	case WM_CLOSE:
 	case WM_QUIT:
-		DestroyWindow(hwnd);
+		EndDialog(hwnd,0);
 		break;
 	case WM_COMMAND:
 		switch (LOWORD(wParam)){
-		case IDC_BUTTON1:
-			DestroyWindow(hwnd);
+		case IDOK:
+			if(val){
+				char str[40]={0};
+				int i;
+				GetDlgItemText(hwnd,IDC_EDIT1,str,sizeof(str));
+				i=strtoul(str,NULL,0);
+				if(i!=0)
+					*val=i;
+			}
+			EndDialog(hwnd,0);
+			break;
+		case IDCANCEL:
+			EndDialog(hwnd,0);
 			break;
 		}
 	}
@@ -600,11 +633,10 @@ LRESULT CALLBACK MainDlg(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam)
 		case VK_F1:
 			display_help(hwnd);
 			break;
-/*		case VK_F2:
-			i=CreateDialog(ghInstance,MAKEINTRESOURCE(IDD_DIALOG2),hwnd,request_value);
-			ShowWindow(i,SW_SHOWNORMAL);
-			debug_printf("return =%i\r\n",i);
-			break;*/
+		case VK_F2:
+		case VK_RETURN:
+			DialogBoxParam(ghInstance,MAKEINTRESOURCE(IDD_DIALOG2),hwnd,request_value,(LPARAM)&xdelta);
+			break;
 		case VK_F5:
 			if(!OpenFileR("open raw image file",hwnd,fname,sizeof(fname)))
 				break;
