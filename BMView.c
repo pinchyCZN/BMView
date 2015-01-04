@@ -414,6 +414,15 @@ void set_info(HWND hwnd,int ctrl)
 		zoom,stretch?"stretch":"",display_modes[RGBmode].name);
 	SetDlgItemText(hwnd,ctrl,str);
 }
+int set_current_dir(char *fname)
+{
+	char path[_MAX_PATH]={0};
+	char drive[_MAX_DRIVE]={0};
+	char dir[_MAX_DIR]={0};
+	_splitpath(fname,drive,dir,0,0);
+	_snprintf(path,sizeof(path),"%s%s",drive,dir);
+	return SetCurrentDirectory(path);
+}
 int set_bytestep(int mode)
 {
 	switch(mode){
@@ -650,6 +659,7 @@ LRESULT CALLBACK MainDlg(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam)
 				_fseeki64(file,0,SEEK_SET);
 				set_window_title(hWindow,fname,file_size);
 				memset(buffer,0,BUF_SIZE);
+				set_current_dir(fname);
 			}
 			break;
 		case VK_DOWN:
