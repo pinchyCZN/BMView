@@ -650,6 +650,10 @@ LRESULT CALLBACK MainDlg(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam)
 			if(!OpenFileR("open raw image file",hwnd,fname,sizeof(fname)))
 				break;
 		case 0xDEADBEEF:
+			if(file!=0){
+				fclose(file);
+				file=0;
+			}
 			file=fopen(fname,"rb");
 			if(file==0)
 				file_error(hwnd,fname);
